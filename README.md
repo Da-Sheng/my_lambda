@@ -137,7 +137,16 @@ sam delete
 - **CloudWatch指标**: 自定义业务指标
 - **AWS Application Insights**: 应用程序监控
 
-## 📚 更多资源
+## 📚 文档系统
+
+| 文档 | 描述 | 面向用户 |
+|------|------|----------|
+| [开发指南](docs/DEVELOPMENT.md) | 本地开发、测试和调试 | 开发者 |
+| [部署指南](docs/DEPLOYMENT.md) | 多环境部署和运维 | 运维人员 |
+| [API文档](docs/API.md) | REST API接口说明 | 前端开发者 |
+| [项目结构](docs/PROJECT_STRUCTURE.md) | 代码架构和文件说明 | 架构师 |
+
+## 📋 更多资源
 
 - [AWS SAM 官方文档](https://docs.aws.amazon.com/serverless-application-model/)
 - [Node.js Lambda最佳实践](https://docs.aws.amazon.com/lambda/latest/dg/nodejs-handler.html)
