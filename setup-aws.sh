@@ -27,7 +27,7 @@ set +a
 # 检查必需的环境变量
 required_vars=("AWS_ACCESS_KEY_ID" "AWS_SECRET_ACCESS_KEY" "AWS_SESSION_TOKEN" "AWS_DEFAULT_REGION")
 for var in "${required_vars[@]}"; do
-    if [ -z "${!var}" ] || [[ "${!var}" == *"填入"* ]]; then
+    if [ -z "${!var}" ] || [ "${!var}" = "填入您的${var#AWS_}" ] || [[ "${!var}" == *"填入"* ]]; then
         echo "❌ 变量 $var 未正确设置"
         echo "请编辑 aws-credentials.env 文件并填入正确的值"
         exit 1
@@ -43,15 +43,18 @@ if aws sts get-caller-identity > /dev/null 2>&1; then
     aws sts get-caller-identity --query '{UserId:UserId,Account:Account,Arn:Arn}' --output table
     echo ""
     echo "🌍 当前区域: $AWS_DEFAULT_REGION"
+    echo "📦 项目前缀: $STACK_NAME_PREFIX"
     echo ""
     echo "🎉 现在可以使用以下命令："
     echo "  sam init                       # 初始化SAM项目"
     echo "  sam build                      # 构建项目"
     echo "  sam local start-api           # 本地测试API"
     echo "  sam deploy --guided           # 部署到AWS"
+    echo "  sam logs --tail               # 查看日志"
     echo ""
 else
     echo "❌ AWS凭证验证失败"
     echo "请检查 aws-credentials.env 文件中的凭证是否正确"
+    echo "确保从AWS控制台复制了完整的凭证值"
     exit 1
-fi
+fi 

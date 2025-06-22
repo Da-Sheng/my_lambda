@@ -1,0 +1,29 @@
+{
+    "name": "users-api",
+    "version": "1.0.0",
+    "description": "用户管理API Lambda函数",
+    "main": "app.mjs",
+    "type": "module",
+    "scripts": {
+        "test": "jest",
+        "test:watch": "jest --watch",
+        "lint": "eslint *.mjs",
+        "local": "sam local start-api"
+    },
+    "dependencies": {
+        "aws-sdk": "^2.1691.0"
+    },
+    "devDependencies": {
+        "jest": "^29.7.0",
+        "eslint": "^8.57.0"
+    },
+    "keywords": [
+        "aws",
+        "lambda",
+        "nodejs",
+        "api",
+        "serverless"
+    ],
+    "author": "DevOps Team",
+    "license": "MIT"
+}

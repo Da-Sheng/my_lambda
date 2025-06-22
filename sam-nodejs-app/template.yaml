@@ -1,0 +1,231 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  sam-nodejs-app
+
+  企业级Node.js无服务器API - 支持多环境部署和监控
+
+# 模板参数
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: 部署环境
+  LogLevel:
+    Type: String
+    Default: info
+    AllowedValues: [debug, info, warn, error]
+    Description: 日志级别
+
+# 全局配置
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 256
+    Runtime: nodejs18.x
+    Architectures:
+      - x86_64
+    Environment:
+      Variables:
+        ENVIRONMENT: !Ref Environment
+        LOG_LEVEL: !Ref LogLevel
+        NODE_OPTIONS: "--enable-source-maps"
+    LoggingConfig:
+      LogFormat: JSON
+      LogGroup: !Sub "/aws/lambda/${AWS::StackName}"
+    Tracing: Active  # X-Ray跟踪
+  Api:
+    Cors:
+      AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+      AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+      AllowOrigin: "'*'"
+    TracingEnabled: true
+
+Resources:
+  # Hello World API (原始的示例API)
+  HelloWorldFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: hello-world/
+      Handler: app.lambdaHandler
+      Description: !Sub "${Environment} - Hello World API"
+      Events:
+        HelloWorld:
+          Type: Api
+          Properties:
+            Path: /hello
+            Method: get
+      Tags:
+        Environment: !Ref Environment
+        Service: HelloWorld
+
+  # 用户管理API
+  UsersFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/users/
+      Handler: app.lambdaHandler
+      Description: !Sub "${Environment} - 用户管理API"
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref UsersTable
+      Events:
+        # 获取所有用户
+        GetUsers:
+          Type: Api
+          Properties:
+            Path: /api/users
+            Method: get
+        # 获取单个用户
+        GetUser:
+          Type: Api
+          Properties:
+            Path: /api/users/{id}
+            Method: get
+        # 创建用户
+        CreateUser:
+          Type: Api
+          Properties:
+            Path: /api/users
+            Method: post
+        # OPTIONS支持CORS
+        UsersCors:
+          Type: Api
+          Properties:
+            Path: /api/users
+            Method: options
+        UserByIdCors:
+          Type: Api
+          Properties:
+            Path: /api/users/{id}
+            Method: options
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+      Tags:
+        Environment: !Ref Environment
+        Service: Users
+
+  # DynamoDB用户表 (为将来扩展准备)
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${AWS::StackName}-users-${Environment}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Service
+          Value: Users
+
+  # CloudWatch仪表板
+  ApiDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub "${AWS::StackName}-${Environment}-dashboard"
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/Lambda", "Duration", "FunctionName", "${HelloWorldFunction}" ],
+                  [ ".", "Invocations", ".", "." ],
+                  [ ".", "Errors", ".", "." ],
+                  [ "AWS/Lambda", "Duration", "FunctionName", "${UsersFunction}" ],
+                  [ ".", "Invocations", ".", "." ],
+                  [ ".", "Errors", ".", "." ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Lambda函数指标",
+                "period": 300
+              }
+            }
+          ]
+        }
+
+  # 应用程序监控
+  ApplicationResourceGroup:
+    Type: AWS::ResourceGroups::Group
+    Properties:
+      Name: !Sub "${AWS::StackName}-${Environment}"
+      ResourceQuery:
+        Type: CLOUDFORMATION_STACK_1_0
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  ApplicationInsightsMonitoring:
+    Type: AWS::ApplicationInsights::Application
+    Properties:
+      ResourceGroupName: !Ref ApplicationResourceGroup
+      AutoConfigurationEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+Outputs:
+  # API网关端点
+  ApiGatewayEndpoint:
+    Description: "API Gateway端点URL"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+    Export:
+      Name: !Sub "${AWS::StackName}-api-endpoint"
+
+  # Hello World API
+  HelloWorldApi:
+    Description: "Hello World API端点"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello"
+
+  # 用户API端点
+  UsersApi:
+    Description: "用户管理API端点"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/api/users"
+
+  # Lambda函数ARN
+  HelloWorldFunctionArn:
+    Description: "Hello World Lambda函数ARN"
+    Value: !GetAtt HelloWorldFunction.Arn
+
+  UsersFunctionArn:
+    Description: "用户管理Lambda函数ARN"
+    Value: !GetAtt UsersFunction.Arn
+
+  # DynamoDB表
+  UsersTableName:
+    Description: "用户DynamoDB表名"
+    Value: !Ref UsersTable
+    Export:
+      Name: !Sub "${AWS::StackName}-users-table"
+
+  # 监控资源
+  DashboardURL:
+    Description: "CloudWatch仪表板URL"
+    Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${AWS::StackName}-${Environment}-dashboard"
+
+  # 环境信息
+  Environment:
+    Description: "部署环境"
+    Value: !Ref Environment
+
+  Region:
+    Description: "AWS区域"
+    Value: !Ref AWS::Region

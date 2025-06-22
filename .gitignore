@@ -85,3 +85,4 @@ dist/
 # Test outputs
 test-results/
 .pytest_cache/
+.aws
